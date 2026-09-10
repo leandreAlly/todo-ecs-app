@@ -1,0 +1,47 @@
+{
+  "family": "",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "",
+  "taskRoleArn": "",
+  "runtimePlatform": {
+    "cpuArchitecture": "X86_64",
+    "operatingSystemFamily": "LINUX"
+  },
+  "containerDefinitions": [
+    {
+      "name": "app",
+      "image": "",
+      "essential": true,
+      "stopTimeout": 60,
+      "portMappings": [
+        {
+          "containerPort": 8080,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        { "name": "SPRING_DATASOURCE_URL", "value": "" },
+        { "name": "SPRING_DATA_REDIS_HOST", "value": "" },
+        { "name": "SPRING_DATA_REDIS_PORT", "value": "" },
+        { "name": "SPRING_DATA_REDIS_SSL_ENABLED", "value": "true" },
+        { "name": "APP_CACHE_ENABLED", "value": "true" },
+        { "name": "APP_CACHE_TTL_SECONDS", "value": "30" }
+      ],
+      "secrets": [
+        { "name": "SPRING_DATASOURCE_USERNAME", "valueFrom": "username::" },
+        { "name": "SPRING_DATASOURCE_PASSWORD", "valueFrom": "password::" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "",
+          "awslogs-region": "",
+          "awslogs-stream-prefix": "app"
+        }
+      }
+    }
+  ]
+}

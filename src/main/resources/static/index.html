@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>To-Do on ECS Fargate</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --line: #262b36; --ink: #e6e9ef;
+    --muted: #8b94a7; --accent: #4f9dfd; --cache: #3ddc97; --db: #ffb454;
+    --warn: #ff6b6b; --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 32px 16px; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  header { margin-bottom: 24px; }
+  .eyebrow { color: var(--muted); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; }
+  h1 { margin: 6px 0 4px; font-size: 26px; }
+  .sub { color: var(--muted); font-size: 14px; }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; }
+
+  form.add { display: flex; gap: 8px; }
+  input[type=text] {
+    flex: 1; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line);
+    background: #10131a; color: var(--ink); font-size: 15px;
+  }
+  input[type=text]:focus { outline: none; border-color: var(--accent); }
+  button {
+    padding: 10px 14px; border-radius: 8px; border: 1px solid var(--line);
+    background: #202634; color: var(--ink); font-size: 14px; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #06111f; font-weight: 600; }
+
+  ul.tasks { list-style: none; margin: 0; padding: 0; }
+  ul.tasks li {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 0; border-bottom: 1px solid var(--line);
+  }
+  ul.tasks li:last-child { border-bottom: 0; }
+  ul.tasks .title { flex: 1; }
+  ul.tasks li.done .title { text-decoration: line-through; color: var(--muted); }
+  ul.tasks .when { color: var(--muted); font-size: 12px; }
+  .icon { padding: 6px 9px; font-size: 13px; }
+  .empty { color: var(--muted); padding: 12px 0; }
+
+  .badges { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px;
+    border-radius: 999px; font-size: 12.5px; font-weight: 600;
+    border: 1px solid var(--line); background: #10131a;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .badge.cache .dot { background: var(--cache); }
+  .badge.cache { color: var(--cache); border-color: rgba(61,220,151,.35); }
+  .badge.database .dot { background: var(--db); }
+  .badge.database { color: var(--db); border-color: rgba(255,180,84,.35); }
+  .badge.degraded .dot { background: var(--warn); }
+  .badge.degraded { color: var(--warn); border-color: rgba(255,107,107,.4); }
+
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin: 0 0 12px; }
+  .split { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .rows { display: grid; gap: 8px; }
+  .row { display: grid; grid-template-columns: 78px 1fr 46px; align-items: center; gap: 10px; font-size: 13px; }
+  .bar { height: 8px; border-radius: 4px; background: #10131a; overflow: hidden; }
+  .bar span { display: block; height: 100%; background: var(--accent); }
+  .row .mono, code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .row .count { color: var(--muted); text-align: right; }
+  .hint { color: var(--muted); font-size: 12.5px; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">Amazon ECS &middot; Fargate &middot; RDS Proxy &middot; ElastiCache</div>
+    <h1>To-Do</h1>
+    <div class="sub">Reads served from Redis, writes persisted to PostgreSQL through RDS Proxy.</div>
+  </header>
+
+  <div class="panel">
+    <form class="add" id="add-form" autocomplete="off">
+      <input type="text" id="new-title" maxlength="200" placeholder="What needs doing?" required>
+      <button type="submit" class="primary">Add</button>
+    </form>
+  </div>
+
+  <div class="panel">
+    <div class="split" style="margin-bottom:10px">
+      <div class="badges">
+        <span class="badge" id="source-badge"><span class="dot"></span><span id="source-text">loading</span></span>
+        <span class="badge" id="latency-badge"><span id="latency-text">&ndash;</span></span>
+      </div>
+      <button class="icon" id="refresh">Refresh</button>
+    </div>
+    <ul class="tasks" id="task-list"></ul>
+    <div class="empty" id="empty" hidden>Nothing here yet. The first read after a write always comes from the database.</div>
+    <div class="hint">Add or change a task and the cached list is dropped, so the next read is a database read; read again and it comes from Redis.</div>
+  </div>
+
+  <div class="panel">
+    <div class="split">
+      <h2>Running version</h2>
+      <code id="version">&ndash;</code>
+    </div>
+    <div class="rows" id="histogram"></div>
+    <div class="hint">Last <span id="sample-size">0</span> polls of <code>/api/version</code>. During a blue/green shift both commits appear here, in proportion to the traffic each target group is taking.</div>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  const list = document.getElementById('task-list');
+  const empty = document.getElementById('empty');
+  const sourceBadge = document.getElementById('source-badge');
+  const sourceText = document.getElementById('source-text');
+  const latencyText = document.getElementById('latency-text');
+
+  const SOURCE_CLASS = { 'cache': 'cache', 'database': 'database' };
+
+  function escapeHtml(value) {
+    return value.replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[c]);
+  }
+
+  function renderSource(page) {
+    const kind = SOURCE_CLASS[page.source] || 'degraded';
+    sourceBadge.className = 'badge ' + kind;
+    sourceText.textContent = page.source;
+    latencyText.textContent = page.latencyMs + ' ms';
+  }
+
+  function renderTasks(items) {
+    list.innerHTML = '';
+    empty.hidden = items.length > 0;
+    for (const task of items) {
+      const li = document.createElement('li');
+      if (task.completed) li.className = 'done';
+      li.innerHTML =
+        '<input type="checkbox" ' + (task.completed ? 'checked' : '') + ' data-act="toggle">' +
+        '<span class="title">' + escapeHtml(task.title) + '</span>' +
+        '<span class="when">' + new Date(task.createdAt).toLocaleString() + '</span>' +
+        '<button class="icon" data-act="edit">Edit</button>' +
+        '<button class="icon" data-act="delete">Delete</button>';
+      li.querySelectorAll('[data-act]').forEach(el => {
+        el.addEventListener(el.tagName === 'INPUT' ? 'change' : 'click', () => act(el.dataset.act, task));
+      });
+      list.appendChild(li);
+    }
+  }
+
+  async function load() {
+    try {
+      const page = await (await fetch('/api/tasks')).json();
+      renderSource(page);
+      renderTasks(page.items);
+    } catch (e) {
+      sourceBadge.className = 'badge degraded';
+      sourceText.textContent = 'unreachable';
+    }
+  }
+
+  async function act(action, task) {
+    if (action === 'toggle') {
+      await fetch('/api/tasks/' + task.id, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ completed: !task.completed })
+      });
+    } else if (action === 'edit') {
+      const title = prompt('New title', task.title);
+      if (title === null || !title.trim()) return;
+      await fetch('/api/tasks/' + task.id, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: title.trim() })
+      });
+    } else if (action === 'delete') {
+      await fetch('/api/tasks/' + task.id, { method: 'DELETE' });
+    }
+    load();
+  }
+
+  document.getElementById('add-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const input = document.getElementById('new-title');
+    const title = input.value.trim();
+    if (!title) return;
+    await fetch('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title })
+    });
+    input.value = '';
+    load();
+  });
+
+  document.getElementById('refresh').addEventListener('click', load);
+
+  // Version histogram. Each poll may land on a different task, so during a
+  // canary shift the tally shows the traffic split between blue and green.
+  const samples = [];
+  const histogram = document.getElementById('histogram');
+  const sampleSize = document.getElementById('sample-size');
+
+  function renderHistogram() {
+    const counts = new Map();
+    for (const commit of samples) counts.set(commit, (counts.get(commit) || 0) + 1);
+    const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+    histogram.innerHTML = '';
+    for (const [commit, count] of ranked) {
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.innerHTML =
+        '<code class="mono">' + escapeHtml(commit) + '</code>' +
+        '<div class="bar"><span style="width:' + Math.round(count / samples.length * 100) + '%"></span></div>' +
+        '<span class="count">' + count + '</span>';
+      histogram.appendChild(row);
+    }
+    sampleSize.textContent = samples.length;
+  }
+
+  async function pollVersion() {
+    try {
+      const info = await (await fetch('/api/version')).json();
+      const short = (info.commit || 'unknown').substring(0, 7);
+      document.getElementById('version').textContent = short;
+      samples.push(short);
+      if (samples.length > 20) samples.shift();
+      renderHistogram();
+    } catch (e) { /* a shift in progress can drop a poll; ignore it */ }
+  }
+
+  load();
+  pollVersion();
+  setInterval(pollVersion, 3000);
+})();
+</script>
+</body>
+</html>
