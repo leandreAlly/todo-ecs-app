@@ -94,6 +94,7 @@
       <div class="badges">
         <span class="badge" id="source-badge"><span class="dot"></span><span id="source-text">loading</span></span>
         <span class="badge" id="latency-badge"><span id="latency-text">&ndash;</span></span>
+        <span class="badge" id="count-badge"><span id="count-text">0 tasks</span></span>
       </div>
       <button class="icon" id="refresh">Refresh</button>
     </div>
@@ -136,7 +137,15 @@
     latencyText.textContent = page.latencyMs + ' ms';
   }
 
+  function renderCount(items) {
+    const done = items.filter(t => t.completed).length;
+    document.getElementById('count-text').textContent =
+      items.length === 0 ? 'no tasks'
+        : items.length + (items.length === 1 ? ' task' : ' tasks') + ', ' + done + ' done';
+  }
+
   function renderTasks(items) {
+    renderCount(items);
     list.innerHTML = '';
     empty.hidden = items.length > 0;
     for (const task of items) {
