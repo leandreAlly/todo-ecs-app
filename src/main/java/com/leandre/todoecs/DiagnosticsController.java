@@ -48,7 +48,6 @@ public class DiagnosticsController {
             result.put("ok", true);
         } catch (Exception e) {
             result.put("ok", false);
-            result.put("error", e.getClass().getSimpleName() + ": " + e.getMessage());
         }
         result.put("latencyMs", (System.nanoTime() - start) / 1_000_000L);
         return result;

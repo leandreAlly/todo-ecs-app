@@ -98,4 +98,13 @@ class TaskControllerTest {
                         .content("{\"completed\":true}"))
                 .andExpect(status().isNotFound());
     }
+
+    @Test
+    void unexpectedFailuresUseAGenericPublicError() throws Exception {
+        when(tasks.list()).thenThrow(new IllegalStateException("db.internal.example:5432"));
+
+        mockMvc.perform(get("/api/tasks"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.error").value("internal_error"));
+    }
 }
