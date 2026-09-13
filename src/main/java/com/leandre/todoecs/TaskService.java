@@ -3,6 +3,8 @@ package com.leandre.todoecs;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -46,7 +48,7 @@ public class TaskService {
     @Transactional
     public TaskView create(String title) {
         Task saved = repository.save(new Task(title.trim()));
-        cache.evict();
+        evictAfterCommit();
         return TaskView.of(saved);
     }
 
@@ -60,7 +62,7 @@ public class TaskService {
                 task.setCompleted(completed);
             }
             TaskView view = TaskView.of(repository.save(task));
-            cache.evict();
+            evictAfterCommit();
             return view;
         });
     }
@@ -71,12 +73,34 @@ public class TaskService {
             return false;
         }
         repository.deleteById(id);
-        cache.evict();
+        evictAfterCommit();
         return true;
     }
 
     public boolean cacheAvailable() {
         return cache.isAvailable();
+    }
+
+    /**
+     * A write must not invalidate the cache until its database transaction is
+     * visible. Otherwise a concurrent read can miss Redis, read the old
+     * database state, and repopulate the cache while the write is still
+     * uncommitted. Plain unit tests do not start a Spring transaction, so they
+     * retain the immediate eviction behaviour.
+     */
+    private void evictAfterCommit() {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()
+                || !TransactionSynchronizationManager.isActualTransactionActive()) {
+            cache.evict();
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                cache.evict();
+            }
+        });
     }
 
     private static long millisSince(long startNanos) {
