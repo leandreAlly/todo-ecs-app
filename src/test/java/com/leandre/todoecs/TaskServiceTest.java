@@ -11,6 +11,8 @@ import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * Plain JUnit, no Spring context: this is the behaviour the lab is actually
@@ -60,6 +62,27 @@ class TaskServiceTest {
     }
 
     @Test
+    void updatingEvictsTheCachedList() {
+        service.list();
+        Task task = new Task("old title");
+        when(repository.findById(1L)).thenReturn(java.util.Optional.of(task));
+        when(repository.save(any(Task.class))).thenAnswer(call -> call.getArgument(0));
+
+        service.update(1L, "new title", true);
+
+        assertThat(service.list().source()).isEqualTo(TaskPage.FROM_DATABASE);
+    }
+
+    @Test
+    void deletingEvictsTheCachedList() {
+        service.list();
+        when(repository.existsById(1L)).thenReturn(true);
+
+        assertThat(service.delete(1L)).isTrue();
+        assertThat(service.list().source()).isEqualTo(TaskPage.FROM_DATABASE);
+    }
+
+    @Test
     void anUnavailableCacheStillServesTheList() {
         cache.goOffline();
 
@@ -76,5 +99,41 @@ class TaskServiceTest {
         TaskPage page = service.list();
 
         assertThat(page.items().get(0).createdAt()).isNotNull().isBefore(Instant.now().plusSeconds(1));
+    }
+
+    @Test
+    void writeEvictsOnlyAfterTransactionCommit() {
+        service.list();
+        when(repository.save(any(Task.class))).thenAnswer(call -> call.getArgument(0));
+        TransactionSynchronizationManager.initSynchronization();
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+        try {
+            service.create("committed write");
+
+            assertThat(service.list().source()).isEqualTo(TaskPage.FROM_CACHE);
+
+            TransactionSynchronizationManager.getSynchronizations()
+                    .forEach(TransactionSynchronization::afterCommit);
+            assertThat(service.list().source()).isEqualTo(TaskPage.FROM_DATABASE);
+        } finally {
+            TransactionSynchronizationManager.setActualTransactionActive(false);
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
+    @Test
+    void rolledBackWriteDoesNotEvictTheCache() {
+        service.list();
+        when(repository.save(any(Task.class))).thenAnswer(call -> call.getArgument(0));
+        TransactionSynchronizationManager.initSynchronization();
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+        try {
+            service.create("rolled back write");
+
+            assertThat(service.list().source()).isEqualTo(TaskPage.FROM_CACHE);
+        } finally {
+            TransactionSynchronizationManager.setActualTransactionActive(false);
+            TransactionSynchronizationManager.clearSynchronization();
+        }
     }
 }
