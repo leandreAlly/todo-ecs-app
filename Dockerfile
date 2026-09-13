@@ -15,7 +15,7 @@ RUN mvn -B -q clean package -DskipTests
 
 FROM eclipse-temurin:21-jre-alpine AS runtime
 
-RUN apk add --no-cache dumb-init \
+RUN apk add --no-cache dumb-init wget \
  && addgroup -S app \
  && adduser -S -G app app
 
