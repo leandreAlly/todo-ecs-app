@@ -1,11 +1,11 @@
 {
-  "family": "",
+  "family": "<TASK_FAMILY>",
   "networkMode": "awsvpc",
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "512",
   "memory": "1024",
-  "executionRoleArn": "",
-  "taskRoleArn": "",
+  "executionRoleArn": "<TASK_EXECUTION_ROLE_ARN>",
+  "taskRoleArn": "<TASK_ROLE_ARN>",
   "runtimePlatform": {
     "cpuArchitecture": "X86_64",
     "operatingSystemFamily": "LINUX"
@@ -13,7 +13,7 @@
   "containerDefinitions": [
     {
       "name": "app",
-      "image": "",
+      "image": "<IMAGE1_NAME>",
       "essential": true,
       "stopTimeout": 60,
       "portMappings": [
@@ -33,23 +33,42 @@
         "startPeriod": 60
       },
       "environment": [
-        { "name": "SPRING_DATASOURCE_URL", "value": "" },
-        { "name": "SPRING_DATA_REDIS_HOST", "value": "" },
-        { "name": "SPRING_DATA_REDIS_PORT", "value": "" },
+        { "name": "SERVER_PORT", "value": "<CONTAINER_PORT>" },
         { "name": "SPRING_DATA_REDIS_SSL_ENABLED", "value": "true" },
         { "name": "APP_CACHE_ENABLED", "value": "true" },
         { "name": "APP_CACHE_TTL_SECONDS", "value": "30" }
       ],
       "secrets": [
-        { "name": "SPRING_DATASOURCE_USERNAME", "valueFrom": "username::" },
-        { "name": "SPRING_DATASOURCE_PASSWORD", "valueFrom": "password::" },
-        { "name": "SPRING_DATA_REDIS_PASSWORD", "valueFrom": "token::" }
+        {
+          "name": "SPRING_DATASOURCE_URL",
+          "valueFrom": "<DATABASE_URL_PARAMETER_ARN>"
+        },
+        {
+          "name": "SPRING_DATA_REDIS_HOST",
+          "valueFrom": "<CACHE_HOST_PARAMETER_ARN>"
+        },
+        {
+          "name": "SPRING_DATA_REDIS_PORT",
+          "valueFrom": "<CACHE_PORT_PARAMETER_ARN>"
+        },
+        {
+          "name": "SPRING_DATASOURCE_USERNAME",
+          "valueFrom": "<DATABASE_SECRET_ARN>:username::"
+        },
+        {
+          "name": "SPRING_DATASOURCE_PASSWORD",
+          "valueFrom": "<DATABASE_SECRET_ARN>:password::"
+        },
+        {
+          "name": "SPRING_DATA_REDIS_PASSWORD",
+          "valueFrom": "<REDIS_SECRET_ARN>:token::"
+        }
       ],
       "logConfiguration": {
         "logDriver": "awslogs",
         "options": {
-          "awslogs-group": "",
-          "awslogs-region": "",
+          "awslogs-group": "<LOG_GROUP_NAME>",
+          "awslogs-region": "<AWS_REGION>",
           "awslogs-stream-prefix": "app"
         }
       }

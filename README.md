@@ -19,6 +19,11 @@ again immediately after any write, because every write drops the cached list.
 The UI shows this as a coloured badge, so the cache is visible rather than
 something to take on trust.
 
+Cache fills carry a Redis generation number. A committed create, update or
+delete atomically advances that generation and evicts the list, so a slow read
+on another ECS task cannot put pre-write data back into Redis after the
+invalidation. Redis remains an optimisation and PostgreSQL remains authoritative.
+
 If Redis becomes unreachable the source reads `database (cache unavailable)`
 and the application keeps serving. A cache is an optimisation: losing it
 degrades latency and nothing else. Every Redis failure is swallowed, and a
@@ -108,28 +113,33 @@ a cache failure, and the cache would silently never serve a hit.
 
 ## How a push becomes a deployment
 
-The workflow runs the tests, builds one image and tags it twice — with the
-commit SHA and with `latest` — uploads `taskdef.json` and `appspec.yaml` to the
-artifact bucket, then pushes the SHA tag followed by `latest`.
+The workflow runs the tests, builds one image and tags it twice — with the full
+commit SHA and with `latest` — then pushes the immutable SHA tag followed by
+`latest`. A rerun reuses the existing immutable image.
 
-That order is load-bearing. The pipeline's S3 source does not poll; the only
-trigger is an EventBridge rule matching a push of `latest`. Publishing the
-config first guarantees the deployment picks up a task definition that already
-names the new image.
+The description lives in this repository as two committed files:
 
-The task definition references the **SHA** tag. A rollback therefore returns to
-the image that was actually running, rather than to whatever `latest` has since
-become — which is what would happen if the task definition named a mutable tag.
+- **`taskdef.json`**, with `"image": "<IMAGE1_NAME>"` as a literal placeholder
+- **`appspec.yaml`**, with the usual `<TASK_DEFINITION>` placeholder
 
-### Required Actions variables
+The immutable tag push emits the EventBridge event. The rule starts the
+pipeline with two exact source overrides: the tag is the Git commit read by the
+CodeConnections source, and the event's image digest is the ECR revision. A
+CodeBuild stage replaces the infrastructure placeholders in `taskdef.json`
+with values supplied directly by CloudFormation, including the full generated
+Secrets Manager ARNs. CodePipeline then substitutes the digest for
+`<IMAGE1_NAME>` and CodeDeploy registers the revision.
 
-Set by `scripts/sync-app-vars.sh` in the infrastructure repository; all of them
-are outputs of the root stack.
+This prevents a newer branch head or a later move of `latest` from changing an
+in-flight deployment. The registered task definition is account- and
+Region-portable in Git while every deployed image is digest-pinned.
 
-`AWS_REGION`, `AWS_ECR_ROLE_ARN`, `ECR_REPOSITORY`, `ARTIFACT_BUCKET`,
-`TASK_FAMILY`, `TASK_EXEC_ROLE_ARN`, `TASK_ROLE_ARN`, `LOG_GROUP`, `DB_URL`,
-`DB_SECRET_ARN`, `REDIS_HOST`, `REDIS_PORT`.
+### Required Actions variables and secrets
 
-An unset `ARTIFACT_BUCKET` is the signal that the delivery stack does not exist
-yet — on that first run the workflow publishes the image only, because the
-platform cannot be created until an image exists to pull.
+Set by `scripts/sync-app-vars.sh` in the infrastructure repository. Two values,
+down from a dozen, because the workflow only needs to reach the registry now.
+
+Secret — a role ARN carries the account ID, and GitHub redacts a secret from
+the workflow log: `AWS_ECR_ROLE_ARN`.
+
+Variables: `AWS_REGION`, `ECR_REPOSITORY`.
