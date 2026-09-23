@@ -13,6 +13,7 @@ class FakeTaskCache implements TaskCache {
 
     private final AtomicReference<List<TaskView>> entry = new AtomicReference<>();
     private boolean available = true;
+    private long generation;
 
     void goOffline() {
         available = false;
@@ -20,19 +21,22 @@ class FakeTaskCache implements TaskCache {
     }
 
     @Override
-    public Optional<List<TaskView>> read() {
-        return available ? Optional.ofNullable(entry.get()) : Optional.empty();
+    public Lookup read() {
+        return available
+                ? new Lookup(Optional.ofNullable(entry.get()), generation)
+                : new Lookup(Optional.empty(), -1L);
     }
 
     @Override
-    public void write(List<TaskView> tasks) {
-        if (available) {
+    public void write(List<TaskView> tasks, long expectedGeneration) {
+        if (available && generation == expectedGeneration) {
             entry.set(List.copyOf(tasks));
         }
     }
 
     @Override
     public void evict() {
+        generation++;
         entry.set(null);
     }
 

@@ -136,4 +136,14 @@ class TaskServiceTest {
             TransactionSynchronizationManager.clearSynchronization();
         }
     }
+
+    @Test
+    void staleReadCannotRepopulateAfterAWrite() {
+        TaskCache.Lookup miss = cache.read();
+        cache.evict();
+        cache.write(List.of(new TaskView(1L, "stale", false, Instant.now(), Instant.now())),
+                miss.generation());
+
+        assertThat(cache.read().tasks()).isEmpty();
+    }
 }

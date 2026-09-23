@@ -12,6 +12,7 @@ import org.springframework.dao.QueryTimeoutException;
 import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.RedisSystemException;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 
 /**
  * Read cache for the task list.
@@ -29,8 +30,18 @@ public class RedisTaskCache implements TaskCache {
 
     private static final Logger log = LoggerFactory.getLogger(RedisTaskCache.class);
     private static final String KEY = "todo:tasks:all";
+    private static final String GENERATION_KEY = "todo:tasks:generation";
     private static final TypeReference<List<TaskView>> LIST_OF_TASKS = new TypeReference<>() {
     };
+    private static final DefaultRedisScript<Long> WRITE_IF_CURRENT = new DefaultRedisScript<>(
+            "local current = redis.call('GET', KEYS[1]); "
+                    + "if not current then current = '0' end; "
+                    + "if current ~= ARGV[1] then return 0 end; "
+                    + "redis.call('SET', KEYS[2], ARGV[2], 'EX', ARGV[3]); return 1",
+            Long.class);
+    private static final DefaultRedisScript<Long> ADVANCE_AND_EVICT = new DefaultRedisScript<>(
+            "redis.call('INCR', KEYS[1]); redis.call('DEL', KEYS[2]); return 1",
+            Long.class);
 
     private final StringRedisTemplate redis;
     private final ObjectMapper mapper;
@@ -51,36 +62,40 @@ public class RedisTaskCache implements TaskCache {
     }
 
     @Override
-    public Optional<List<TaskView>> read() {
+    public Lookup read() {
         if (breaker.isOpen()) {
-            return Optional.empty();
+            return miss(-1L);
         }
         try {
             String payload = redis.opsForValue().get(KEY);
             breaker.recordSuccess();
             if (payload == null) {
-                return Optional.empty();
+                String generation = redis.opsForValue().get(GENERATION_KEY);
+                return miss(generation == null ? 0L : Long.parseLong(generation));
             }
-            return Optional.of(mapper.readValue(payload, LIST_OF_TASKS));
+            return new Lookup(Optional.of(mapper.readValue(payload, LIST_OF_TASKS)), -1L);
         } catch (RedisConnectionFailureException | QueryTimeoutException | RedisSystemException e) {
             log.warn("Cache read failed, falling back to the database: {}", e.toString());
             breaker.recordFailure();
-            return Optional.empty();
+            return miss(-1L);
         } catch (Exception e) {
-            // A payload we cannot parse would otherwise be re-read forever.
             log.warn("Discarding an unreadable cache entry: {}", e.toString());
             evict();
-            return Optional.empty();
+            return miss(-1L);
         }
     }
 
     @Override
-    public void write(List<TaskView> tasks) {
-        if (breaker.isOpen()) {
+    public void write(List<TaskView> tasks, long generation) {
+        if (breaker.isOpen() || generation < 0) {
             return;
         }
         try {
-            redis.opsForValue().set(KEY, mapper.writeValueAsString(tasks), ttl);
+            redis.execute(WRITE_IF_CURRENT,
+                    List.of(GENERATION_KEY, KEY),
+                    Long.toString(generation),
+                    mapper.writeValueAsString(tasks),
+                    Long.toString(ttl.toSeconds()));
             breaker.recordSuccess();
         } catch (RedisConnectionFailureException | QueryTimeoutException | RedisSystemException e) {
             log.warn("Cache write failed: {}", e.toString());
@@ -93,7 +108,7 @@ public class RedisTaskCache implements TaskCache {
     @Override
     public void evict() {
         try {
-            redis.delete(KEY);
+            redis.execute(ADVANCE_AND_EVICT, List.of(GENERATION_KEY, KEY));
         } catch (Exception e) {
             log.warn("Cache eviction failed, entry will expire in {}: {}", ttl, e.toString());
         }
@@ -112,6 +127,10 @@ public class RedisTaskCache implements TaskCache {
             breaker.recordFailure();
             return false;
         }
+    }
+
+    private static Lookup miss(long generation) {
+        return new Lookup(Optional.empty(), generation);
     }
 
     /** Opens for 30 seconds after three consecutive failures. */

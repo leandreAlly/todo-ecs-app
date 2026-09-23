@@ -30,16 +30,16 @@ public class TaskService {
     public TaskPage list() {
         long start = System.nanoTime();
 
-        Optional<List<TaskView>> cached = cache.read();
-        if (cached.isPresent()) {
-            return new TaskPage(cached.get(), TaskPage.FROM_CACHE, millisSince(start));
+        TaskCache.Lookup lookup = cache.read();
+        if (lookup.tasks().isPresent()) {
+            return new TaskPage(lookup.tasks().get(), TaskPage.FROM_CACHE, millisSince(start));
         }
 
         List<TaskView> tasks = repository.findAllByOrderByCreatedAtDesc()
                 .stream()
                 .map(TaskView::of)
                 .toList();
-        cache.write(tasks);
+        cache.write(tasks, lookup.generation());
 
         String source = cache.isAvailable() ? TaskPage.FROM_DATABASE : TaskPage.FROM_DATABASE_DEGRADED;
         return new TaskPage(tasks, source, millisSince(start));

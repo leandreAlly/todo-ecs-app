@@ -11,9 +11,12 @@ import java.util.Optional;
  */
 public interface TaskCache {
 
-    Optional<List<TaskView>> read();
+    record Lookup(Optional<List<TaskView>> tasks, long generation) {
+    }
 
-    void write(List<TaskView> tasks);
+    Lookup read();
+
+    void write(List<TaskView> tasks, long generation);
 
     void evict();
 
