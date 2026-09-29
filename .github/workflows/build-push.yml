@@ -61,20 +61,10 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Check for an existing commit image
-        id: existing
-        env:
-          REPOSITORY: ${{ vars.ECR_REPOSITORY }}
-        run: |
-          set -eo pipefail
-          if aws ecr describe-images \
-            --repository-name "$REPOSITORY" \
-            --image-ids "imageTag=$GITHUB_SHA" >/dev/null 2>&1; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
-
+      # "latest" is the only tag. Pushing it moves the tag to this image, the
+      # previous image is left untagged, and the push event starts the
+      # pipeline, which deploys this image by digest. The commit is baked in
+      # as a build argument so the UI still reports which one is live.
       - name: Build the image
         id: image
         env:
@@ -82,35 +72,18 @@ jobs:
           REPOSITORY: ${{ vars.ECR_REPOSITORY }}
         run: |
           set -eo pipefail
-          SHA="$GITHUB_SHA"
+          IMAGE="$REGISTRY/$REPOSITORY:latest"
+          echo "uri=$IMAGE" >> "$GITHUB_OUTPUT"
 
-          echo "sha=$SHA"                                  >> "$GITHUB_OUTPUT"
-          echo "uri=$REGISTRY/$REPOSITORY:$SHA"            >> "$GITHUB_OUTPUT"
-          echo "latest=$REGISTRY/$REPOSITORY:latest"       >> "$GITHUB_OUTPUT"
+          docker build \
+            --build-arg "VERSION=$GITHUB_SHA" \
+            --build-arg "COMMIT=$GITHUB_SHA" \
+            --tag "$IMAGE" \
+            .
 
-          if [ "${{ steps.existing.outputs.exists }}" = true ]; then
-            docker pull "$REGISTRY/$REPOSITORY:$SHA"
-            docker tag "$REGISTRY/$REPOSITORY:$SHA" "$REGISTRY/$REPOSITORY:latest"
-          else
-            docker build \
-              --build-arg "VERSION=$SHA" \
-              --build-arg "COMMIT=$GITHUB_SHA" \
-              --tag "$REGISTRY/$REPOSITORY:$SHA" \
-              --tag "$REGISTRY/$REPOSITORY:latest" \
-              .
-          fi
-
-      - name: Push the immutable image tag
-        if: steps.existing.outputs.exists != 'true'
+      - name: Push the latest tag
         env:
-          SHA_IMAGE: ${{ steps.image.outputs.uri }}
+          IMAGE: ${{ steps.image.outputs.uri }}
         run: |
           set -eo pipefail
-          docker push "$SHA_IMAGE"
-
-      - name: Push the mutable latest tag
-        env:
-          LATEST_IMAGE: ${{ steps.image.outputs.latest }}
-        run: |
-          set -eo pipefail
-          docker push "$LATEST_IMAGE"
+          docker push "$IMAGE"

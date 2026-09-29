@@ -113,25 +113,26 @@ a cache failure, and the cache would silently never serve a hit.
 
 ## How a push becomes a deployment
 
-The workflow runs the tests, builds one image and tags it twice — with the full
-commit SHA and with `latest` — then pushes the immutable SHA tag followed by
-`latest`. A rerun reuses the existing immutable image.
+The workflow runs the tests, builds one image and pushes it as `latest` — the
+only tag in the repository. ECR moves the tag to the new image and leaves the
+previous one untagged. The commit SHA is baked into the image as a build
+argument, so `/api/version` and the UI still report which commit is live.
 
 The description lives in this repository as two committed files:
 
 - **`taskdef.json`**, with `"image": "<IMAGE1_NAME>"` as a literal placeholder
 - **`appspec.yaml`**, with the usual `<TASK_DEFINITION>` placeholder
 
-The immutable tag push emits the EventBridge event. The rule starts the
-pipeline with two exact source overrides: the tag is the Git commit read by the
-CodeConnections source, and the event's image digest is the ECR revision. A
+The push of `latest` emits the EventBridge event. The rule starts the pipeline
+with the event's image digest as the ECR source override, and the
+CodeConnections source reads these two files from the head of `main`. A
 CodeBuild stage replaces the infrastructure placeholders in `taskdef.json`
 with values supplied directly by CloudFormation, including the full generated
 Secrets Manager ARNs. CodePipeline then substitutes the digest for
 `<IMAGE1_NAME>` and CodeDeploy registers the revision.
 
-This prevents a newer branch head or a later move of `latest` from changing an
-in-flight deployment. The registered task definition is account- and
+The digest keeps a later move of `latest` from changing an in-flight
+deployment. The registered task definition is account- and
 Region-portable in Git while every deployed image is digest-pinned.
 
 ### Required Actions variables and secrets
