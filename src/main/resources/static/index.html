@@ -3,126 +3,119 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>To-Do on ECS Fargate</title>
+<title>To-Do</title>
 <style>
   :root {
-    --bg: #0f1115; --panel: #171a21; --line: #262b36; --ink: #e6e9ef;
-    --muted: #8b94a7; --accent: #4f9dfd; --cache: #3ddc97; --db: #ffb454;
-    --warn: #ff6b6b; --radius: 10px;
+    --bg: #f6f7f9; --card: #ffffff; --line: #e6e8ec; --ink: #1d2128;
+    --muted: #7a8291; --accent: #2f6fde; --cache: #1f9d6b; --db: #c27a12; --warn: #d14343;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111317; --card: #181b21; --line: #2a2f38; --ink: #e7e9ee;
+      --muted: #8a92a3; --accent: #6ea2ff; --cache: #48c78e; --db: #e0a33a; --warn: #ef6b6b;
+    }
   }
   * { box-sizing: border-box; }
   body {
-    margin: 0; padding: 32px 16px; background: var(--bg); color: var(--ink);
+    margin: 0; padding: 56px 16px; background: var(--bg); color: var(--ink);
     font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   }
-  .wrap { max-width: 720px; margin: 0 auto; }
-  header { margin-bottom: 24px; }
-  .eyebrow { color: var(--muted); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; }
-  h1 { margin: 6px 0 4px; font-size: 26px; }
-  .sub { color: var(--muted); font-size: 14px; }
+  .wrap { max-width: 560px; margin: 0 auto; }
+  h1 { margin: 0 0 20px; font-size: 24px; font-weight: 650; }
 
-  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
 
-  form.add { display: flex; gap: 8px; }
-  input[type=text] {
-    flex: 1; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line);
-    background: #10131a; color: var(--ink); font-size: 15px;
+  form.add { display: flex; border-bottom: 1px solid var(--line); }
+  form.add input {
+    flex: 1; padding: 14px 16px; border: 0; background: transparent; color: var(--ink); font: inherit;
   }
-  input[type=text]:focus { outline: none; border-color: var(--accent); }
-  button {
-    padding: 10px 14px; border-radius: 8px; border: 1px solid var(--line);
-    background: #202634; color: var(--ink); font-size: 14px; cursor: pointer;
+  form.add input:focus { outline: none; }
+  form.add button {
+    margin: 8px; padding: 0 14px; border: 0; border-radius: 8px;
+    background: var(--accent); color: #fff; font: inherit; font-weight: 600; cursor: pointer;
   }
-  button:hover { border-color: var(--accent); }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #06111f; font-weight: 600; }
 
-  ul.tasks { list-style: none; margin: 0; padding: 0; }
-  ul.tasks li {
-    display: flex; align-items: center; gap: 10px;
-    padding: 10px 0; border-bottom: 1px solid var(--line);
+  ul { list-style: none; margin: 0; padding: 0; }
+  li { display: flex; align-items: center; gap: 12px; padding: 11px 16px; border-bottom: 1px solid var(--line); }
+  li:last-child { border-bottom: 0; }
+  li input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+  li .title { flex: 1; overflow-wrap: anywhere; }
+  li.done .title { color: var(--muted); text-decoration: line-through; }
+  li .edit { flex: 1; font: inherit; color: var(--ink); background: transparent;
+             border: 0; border-bottom: 1px solid var(--accent); padding: 0; }
+  li .edit:focus { outline: none; }
+  li .delete {
+    border: 0; background: none; color: var(--muted); font-size: 18px; line-height: 1;
+    cursor: pointer; opacity: 0; padding: 2px 4px;
   }
-  ul.tasks li:last-child { border-bottom: 0; }
-  ul.tasks .title { flex: 1; }
-  ul.tasks li.done .title { text-decoration: line-through; color: var(--muted); }
-  ul.tasks .when { color: var(--muted); font-size: 12px; }
-  .icon { padding: 6px 9px; font-size: 13px; }
-  .empty { color: var(--muted); padding: 12px 0; }
+  li:hover .delete, li .delete:focus { opacity: 1; }
+  li .delete:hover { color: var(--warn); }
+  @media (hover: none) { li .delete { opacity: 1; } }
+  .empty { padding: 20px 16px; color: var(--muted); text-align: center; }
 
-  .badges { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-  .badge {
-    display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px;
-    border-radius: 999px; font-size: 12.5px; font-weight: 600;
-    border: 1px solid var(--line); background: #10131a;
+  .status {
+    display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center;
+    margin-top: 12px; padding: 0 4px; color: var(--muted); font-size: 13px;
   }
-  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
-  .badge.cache .dot { background: var(--cache); }
-  .badge.cache { color: var(--cache); border-color: rgba(61,220,151,.35); }
-  .badge.database .dot { background: var(--db); }
-  .badge.database { color: var(--db); border-color: rgba(255,180,84,.35); }
-  .badge.degraded .dot { background: var(--warn); }
-  .badge.degraded { color: var(--warn); border-color: rgba(255,107,107,.4); }
+  .status .source::before {
+    content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 6px;
+    border-radius: 50%; background: var(--muted); vertical-align: 1px;
+  }
+  .status .source.cache { color: var(--cache); }
+  .status .source.cache::before { background: var(--cache); }
+  .status .source.database { color: var(--db); }
+  .status .source.database::before { background: var(--db); }
+  .status .source.degraded { color: var(--warn); }
+  .status .source.degraded::before { background: var(--warn); }
+  .status .spacer { flex: 1; }
+  .status button { border: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; padding: 0; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
 
-  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin: 0 0 12px; }
-  .split { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
-  .rows { display: grid; gap: 8px; }
-  .row { display: grid; grid-template-columns: 78px 1fr 46px; align-items: center; gap: 10px; font-size: 13px; }
-  .bar { height: 8px; border-radius: 4px; background: #10131a; overflow: hidden; }
-  .bar span { display: block; height: 100%; background: var(--accent); }
-  .row .mono, code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-  .row .count { color: var(--muted); text-align: right; }
-  .hint { color: var(--muted); font-size: 12.5px; margin-top: 10px; }
+  .rollout { margin-top: 14px; padding: 0 4px; font-size: 13px; color: var(--muted); }
+  .rollout .row { display: grid; grid-template-columns: 64px 1fr 34px; gap: 10px; align-items: center; margin-top: 6px; }
+  .rollout .bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+  .rollout .bar span { display: block; height: 100%; background: var(--accent); }
+  .rollout .pct { text-align: right; }
 </style>
 </head>
 <body>
 <div class="wrap">
+  <h1>To-Do</h1>
 
-  <header>
-    <div class="eyebrow">Amazon ECS &middot; Fargate &middot; RDS Proxy &middot; ElastiCache</div>
-    <h1>To-Do</h1>
-    <div class="sub">Reads served from Redis, writes persisted to PostgreSQL through RDS Proxy.</div>
-  </header>
-
-  <div class="panel">
+  <div class="card">
     <form class="add" id="add-form" autocomplete="off">
-      <input type="text" id="new-title" maxlength="200" placeholder="What needs doing?" required>
-      <button type="submit" class="primary">Add</button>
+      <input type="text" id="new-title" maxlength="200" placeholder="Add a task" aria-label="New task" required>
+      <button type="submit">Add</button>
     </form>
+    <ul id="task-list"></ul>
+    <div class="empty" id="empty" hidden>No tasks yet.</div>
   </div>
 
-  <div class="panel">
-    <div class="split" style="margin-bottom:10px">
-      <div class="badges">
-        <span class="badge" id="source-badge"><span class="dot"></span><span id="source-text">loading</span></span>
-        <span class="badge" id="latency-badge"><span id="latency-text">&ndash;</span></span>
-        <span class="badge" id="count-badge"><span id="count-text">0 tasks</span></span>
-      </div>
-      <button class="icon" id="refresh">Refresh</button>
-    </div>
-    <ul class="tasks" id="task-list"></ul>
-    <div class="empty" id="empty" hidden>Nothing here yet. The first read after a write always comes from the database.</div>
-    <div class="hint">Add or change a task and the cached list is dropped, so the next read is a database read; read again and it comes from Redis.</div>
+  <div class="status">
+    <span class="source" id="source">loading</span>
+    <span id="latency"></span>
+    <span id="count"></span>
+    <span class="spacer"></span>
+    <code id="version" title="Commit serving this page"></code>
+    <button id="refresh" type="button">Refresh</button>
   </div>
 
-  <div class="panel">
-    <div class="split">
-      <h2>Running version</h2>
-      <code id="version">&ndash;</code>
-    </div>
-    <div class="rows" id="histogram"></div>
-    <div class="hint">Last <span id="sample-size">0</span> polls of <code>/api/version</code>. During a blue/green shift both commits appear here, in proportion to the traffic each target group is taking.</div>
+  <!-- Only shown while more than one commit answers, i.e. during a blue/green
+       traffic shift. Each poll can land on either target group. -->
+  <div class="rollout" id="rollout" hidden>
+    Rolling out &mdash; last <span id="sample-size">0</span> requests
+    <div id="histogram"></div>
   </div>
-
 </div>
 
 <script>
 (function () {
   const list = document.getElementById('task-list');
   const empty = document.getElementById('empty');
-  const sourceBadge = document.getElementById('source-badge');
-  const sourceText = document.getElementById('source-text');
-  const latencyText = document.getElementById('latency-text');
+  const source = document.getElementById('source');
 
-  const SOURCE_CLASS = { 'cache': 'cache', 'database': 'database' };
+  const KNOWN_SOURCES = ['cache', 'database'];
+  const json = { 'Content-Type': 'application/json' };
 
   function escapeHtml(value) {
     return value.replace(/[&<>"']/g, c => ({
@@ -130,69 +123,74 @@
     })[c]);
   }
 
-  function renderSource(page) {
-    const kind = SOURCE_CLASS[page.source] || 'degraded';
-    sourceBadge.className = 'badge ' + kind;
-    sourceText.textContent = page.source;
-    latencyText.textContent = page.latencyMs + ' ms';
-  }
-
-  function renderCount(items) {
-    const done = items.filter(t => t.completed).length;
-    document.getElementById('count-text').textContent =
-      items.length === 0 ? 'no tasks'
-        : items.length + (items.length === 1 ? ' task' : ' tasks') + ', ' + done + ' done';
+  function renderStatus(page) {
+    source.className = 'source ' + (KNOWN_SOURCES.includes(page.source) ? page.source : 'degraded');
+    source.textContent = 'from ' + page.source;
+    document.getElementById('latency').textContent = page.latencyMs + ' ms';
+    const done = page.items.filter(t => t.completed).length;
+    document.getElementById('count').textContent =
+      page.items.length === 0 ? '' : done + ' of ' + page.items.length + ' done';
   }
 
   function renderTasks(items) {
-    renderCount(items);
     list.innerHTML = '';
     empty.hidden = items.length > 0;
     for (const task of items) {
       const li = document.createElement('li');
       if (task.completed) li.className = 'done';
       li.innerHTML =
-        '<input type="checkbox" ' + (task.completed ? 'checked' : '') + ' data-act="toggle">' +
-        '<span class="title">' + escapeHtml(task.title) + '</span>' +
-        '<span class="when">' + new Date(task.createdAt).toLocaleString() + '</span>' +
-        '<button class="icon" data-act="edit">Edit</button>' +
-        '<button class="icon" data-act="delete">Delete</button>';
-      li.querySelectorAll('[data-act]').forEach(el => {
-        el.addEventListener(el.tagName === 'INPUT' ? 'change' : 'click', () => act(el.dataset.act, task));
-      });
+        '<input type="checkbox" aria-label="Done" ' + (task.completed ? 'checked' : '') + '>' +
+        '<span class="title" title="Double-click to edit">' + escapeHtml(task.title) + '</span>' +
+        '<button class="delete" type="button" aria-label="Delete">&times;</button>';
+      li.querySelector('input').addEventListener('change', () =>
+        update(task, { completed: !task.completed }));
+      li.querySelector('.delete').addEventListener('click', () => remove(task));
+      li.querySelector('.title').addEventListener('dblclick', e => startEdit(task, e.target));
       list.appendChild(li);
     }
+  }
+
+  function startEdit(task, span) {
+    const input = document.createElement('input');
+    input.className = 'edit';
+    input.maxLength = 200;
+    input.value = task.title;
+    span.replaceWith(input);
+    input.focus();
+    input.select();
+    let finished = false;
+    const finish = save => {
+      if (finished) return;
+      finished = true;
+      const title = input.value.trim();
+      if (save && title && title !== task.title) update(task, { title });
+      else load();
+    };
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') finish(true);
+      if (e.key === 'Escape') finish(false);
+    });
+    input.addEventListener('blur', () => finish(true));
   }
 
   async function load() {
     try {
       const page = await (await fetch('/api/tasks')).json();
-      renderSource(page);
+      renderStatus(page);
       renderTasks(page.items);
     } catch (e) {
-      sourceBadge.className = 'badge degraded';
-      sourceText.textContent = 'unreachable';
+      source.className = 'source degraded';
+      source.textContent = 'unreachable';
     }
   }
 
-  async function act(action, task) {
-    if (action === 'toggle') {
-      await fetch('/api/tasks/' + task.id, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ completed: !task.completed })
-      });
-    } else if (action === 'edit') {
-      const title = prompt('New title', task.title);
-      if (title === null || !title.trim()) return;
-      await fetch('/api/tasks/' + task.id, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: title.trim() })
-      });
-    } else if (action === 'delete') {
-      await fetch('/api/tasks/' + task.id, { method: 'DELETE' });
-    }
+  async function update(task, changes) {
+    await fetch('/api/tasks/' + task.id, { method: 'PATCH', headers: json, body: JSON.stringify(changes) });
+    load();
+  }
+
+  async function remove(task) {
+    await fetch('/api/tasks/' + task.id, { method: 'DELETE' });
     load();
   }
 
@@ -201,38 +199,36 @@
     const input = document.getElementById('new-title');
     const title = input.value.trim();
     if (!title) return;
-    await fetch('/api/tasks', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title })
-    });
+    await fetch('/api/tasks', { method: 'POST', headers: json, body: JSON.stringify({ title }) });
     input.value = '';
     load();
   });
 
   document.getElementById('refresh').addEventListener('click', load);
 
-  // Version histogram. Each poll may land on a different task, so during a
-  // canary shift the tally shows the traffic split between blue and green.
+  // Version polling. During a canary shift polls land on both target groups,
+  // so the tally shows the traffic split; otherwise only the commit is shown.
   const samples = [];
+  const rollout = document.getElementById('rollout');
   const histogram = document.getElementById('histogram');
-  const sampleSize = document.getElementById('sample-size');
 
-  function renderHistogram() {
+  function renderRollout() {
     const counts = new Map();
     for (const commit of samples) counts.set(commit, (counts.get(commit) || 0) + 1);
-    const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+    rollout.hidden = counts.size < 2;
+    if (rollout.hidden) return;
+    document.getElementById('sample-size').textContent = samples.length;
     histogram.innerHTML = '';
-    for (const [commit, count] of ranked) {
+    for (const [commit, count] of [...counts.entries()].sort((a, b) => b[1] - a[1])) {
+      const pct = Math.round(count / samples.length * 100);
       const row = document.createElement('div');
       row.className = 'row';
       row.innerHTML =
-        '<code class="mono">' + escapeHtml(commit) + '</code>' +
-        '<div class="bar"><span style="width:' + Math.round(count / samples.length * 100) + '%"></span></div>' +
-        '<span class="count">' + count + '</span>';
+        '<code>' + escapeHtml(commit) + '</code>' +
+        '<div class="bar"><span style="width:' + pct + '%"></span></div>' +
+        '<span class="pct">' + pct + '%</span>';
       histogram.appendChild(row);
     }
-    sampleSize.textContent = samples.length;
   }
 
   async function pollVersion() {
@@ -242,7 +238,7 @@
       document.getElementById('version').textContent = short;
       samples.push(short);
       if (samples.length > 20) samples.shift();
-      renderHistogram();
+      renderRollout();
     } catch (e) { /* a shift in progress can drop a poll; ignore it */ }
   }
 
