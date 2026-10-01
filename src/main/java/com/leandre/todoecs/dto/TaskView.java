@@ -1,5 +1,6 @@
-package com.leandre.todoecs;
+package com.leandre.todoecs.dto;
 
+import com.leandre.todoecs.model.Task;
 import java.time.Instant;
 
 /**

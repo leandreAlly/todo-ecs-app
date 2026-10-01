@@ -1,7 +1,8 @@
-package com.leandre.todoecs;
+package com.leandre.todoecs.cache;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.leandre.todoecs.dto.TaskView;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;

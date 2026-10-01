@@ -1,4 +1,4 @@
-package com.leandre.todoecs;
+package com.leandre.todoecs.dto;
 
 import java.util.List;
 

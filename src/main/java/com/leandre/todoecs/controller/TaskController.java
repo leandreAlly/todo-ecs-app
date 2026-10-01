@@ -1,5 +1,10 @@
-package com.leandre.todoecs;
+package com.leandre.todoecs.controller;
 
+import com.leandre.todoecs.dto.TaskPage;
+import com.leandre.todoecs.dto.TaskRequest;
+import com.leandre.todoecs.dto.TaskUpdateRequest;
+import com.leandre.todoecs.dto.TaskView;
+import com.leandre.todoecs.service.TaskService;
 import jakarta.validation.Valid;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;

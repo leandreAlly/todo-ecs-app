@@ -30,6 +30,23 @@ degrades latency and nothing else. Every Redis failure is swallowed, and a
 small breaker stops the app paying a command timeout on every request while
 the cache is down.
 
+## Code layout
+
+Layered by responsibility under `com.leandre.todoecs`, with `Application` at
+the root so component and entity scanning cover every package. Tests mirror
+the same packages.
+
+| Package | Holds |
+| --- | --- |
+| `controller` | `TaskController` (`/api/tasks`, plus `/health` and `/api/version`), `DiagnosticsController` (`/api/diagnostics`) |
+| `service` | `TaskService` - Redis-first reads, PostgreSQL writes, cache invalidation after commit |
+| `repository` | `TaskRepository`, the Spring Data JPA repository |
+| `model` | `Task`, the JPA entity |
+| `dto` | Request and response records: `TaskRequest`, `TaskUpdateRequest`, `TaskView`, `TaskPage` |
+| `cache` | `TaskCache` and its Redis and no-op implementations |
+| `config` | Cache selection and startup warm-up |
+| `exception` | `ApiExceptionHandler`, which maps failures to JSON error responses |
+
 ## API
 
 | Method | Path | Purpose |

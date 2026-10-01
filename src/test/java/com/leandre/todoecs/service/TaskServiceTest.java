@@ -1,4 +1,4 @@
-package com.leandre.todoecs;
+package com.leandre.todoecs.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -7,6 +7,11 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.leandre.todoecs.cache.TaskCache;
+import com.leandre.todoecs.dto.TaskPage;
+import com.leandre.todoecs.dto.TaskView;
+import com.leandre.todoecs.model.Task;
+import com.leandre.todoecs.repository.TaskRepository;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;

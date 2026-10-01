@@ -1,6 +1,9 @@
-package com.leandre.todoecs;
+package com.leandre.todoecs.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.leandre.todoecs.cache.NoopTaskCache;
+import com.leandre.todoecs.cache.RedisTaskCache;
+import com.leandre.todoecs.cache.TaskCache;
 import io.lettuce.core.ClientOptions;
 import io.lettuce.core.TimeoutOptions;
 import java.time.Duration;

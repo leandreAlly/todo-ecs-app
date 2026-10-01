@@ -1,4 +1,4 @@
-package com.leandre.todoecs;
+package com.leandre.todoecs.exception;
 
 import java.util.Map;
 import java.util.stream.Collectors;

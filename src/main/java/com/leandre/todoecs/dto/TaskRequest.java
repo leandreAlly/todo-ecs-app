@@ -1,4 +1,4 @@
-package com.leandre.todoecs;
+package com.leandre.todoecs.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;

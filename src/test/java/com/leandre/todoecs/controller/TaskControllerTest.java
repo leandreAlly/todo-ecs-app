@@ -1,4 +1,4 @@
-package com.leandre.todoecs;
+package com.leandre.todoecs.controller;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -9,6 +9,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.leandre.todoecs.dto.TaskPage;
+import com.leandre.todoecs.dto.TaskView;
+import com.leandre.todoecs.service.TaskService;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;

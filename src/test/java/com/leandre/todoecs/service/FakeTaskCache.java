@@ -1,5 +1,7 @@
-package com.leandre.todoecs;
+package com.leandre.todoecs.service;
 
+import com.leandre.todoecs.cache.TaskCache;
+import com.leandre.todoecs.dto.TaskView;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;

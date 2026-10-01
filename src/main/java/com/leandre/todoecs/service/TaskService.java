@@ -1,11 +1,16 @@
-package com.leandre.todoecs;
+package com.leandre.todoecs.service;
 
+import com.leandre.todoecs.cache.TaskCache;
+import com.leandre.todoecs.dto.TaskPage;
+import com.leandre.todoecs.dto.TaskView;
+import com.leandre.todoecs.model.Task;
+import com.leandre.todoecs.repository.TaskRepository;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Reads go to Redis first and fall back to PostgreSQL; writes go to PostgreSQL

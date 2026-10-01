@@ -1,5 +1,6 @@
-package com.leandre.todoecs;
+package com.leandre.todoecs.cache;
 
+import com.leandre.todoecs.dto.TaskView;
 import java.util.List;
 import java.util.Optional;
 
